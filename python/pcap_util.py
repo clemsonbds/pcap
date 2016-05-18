@@ -1,5 +1,8 @@
 import binascii
 import struct
+import sys
+
+HEADER_LEN = 16
 
 def btostr(b):
 	return binascii.hexlify(b)
@@ -21,6 +24,14 @@ def btoint(b, littleE=False):
 		fmt = '>I'
 	i, = struct.unpack(fmt, b)
 	return i
+
+def shorttob(n, littleE=False):
+	fmt = '<H' if littleE else 'HI'
+	return struct.pack(fmt, n)
+
+def inttob(n, littleE=False):
+	fmt = '<I' if littleE else '>I'
+	return struct.pack(fmt, n)
 
 # this is just bisect.bisect_left, but handles reverse order arrays.
 # calling this will return an index in the list according to the value of x,
@@ -44,13 +55,22 @@ class TraceHeader:
 	def __init__(self, byte_array):
 		self.magic =    btostr(byte_array[:4])
 		self.swap =     True if self.magic == 'd4c3b2a1' else False
-		swap = self.swap
-
-		self.version =  str(btoshort(byte_array[4:6], swap)) + '.' + str(btoshort(byte_array[6:8], swap))
-		self.timezone = btoint(byte_array[8:12], swap)
-		self.sigfigs =  btoint(byte_array[12:16], swap)
-		self.snaplen =  btoint(byte_array[16:20], swap)
-		self.network =  btoint(byte_array[20:], swap)
+		self.version_major = btoshort(byte_array[4:6], self.swap)
+		self.version_minor = btoshort(byte_array[6:8], self.swap)
+		self.version =  str(self.version_major) + '.' + str(self.version_minor)
+		self.timezone = btoint(byte_array[8:12], self.swap)
+		self.sigfigs =  btoint(byte_array[12:16], self.swap)
+		self.snaplen =  btoint(byte_array[16:20], self.swap)
+		self.network =  btoint(byte_array[20:], self.swap)
+	def to_bytes(self):
+		b = bytearray().fromhex(self.magic)
+		b += shorttob(self.version_major, self.swap)
+		b += shorttob(self.version_minor, self.swap)
+		b += inttob(self.timezone, self.swap)
+		b += inttob(self.sigfigs, self.swap)
+		b += inttob(self.snaplen, self.swap)
+		b += inttob(self.network, self.swap)
+		return b
 
 class PacketHeader:
 	def __init__(self, byte_array, index, swap):
@@ -66,3 +86,32 @@ class PacketHeader:
 		return False
 	def __repr__(self):
 		return "(%d.%d,%d,%d)" % (self.ts_sec, self.ts_usec, self.incl_len, self.orig_len)
+
+def extract_headers(file, swap, end=sys.maxint, start_offset=24):
+	headers = {}
+	index = 0
+	offset = 0
+	chunk_size = 65535
+
+	b = file.read(min(end, chunk_size))
+
+	while len(b) >= HEADER_LEN:
+		max_index = len(b) - HEADER_LEN
+
+		while index - offset <= max_index:
+			header = PacketHeader(b, index - offset, swap)
+			headers[index+start_offset] = header
+			index += header.incl_len + HEADER_LEN
+
+		offset += max_index+1
+		b = b[max_index+1:] + file.read(min(end-offset, chunk_size))
+
+	return headers
+
+def recapture(infile_name, outfile_name, new_snaplen):
+	with open(infile_name, 'rb') as infile:
+		with open(outfile_name, 'wb') as outfile:
+			header = TraceHeader(infile.read(24))
+
+
+
