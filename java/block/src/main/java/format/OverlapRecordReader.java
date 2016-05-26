@@ -109,7 +109,8 @@ public class OverlapRecordReader extends RecordReader<LongWritable, Text> {
         start = split.getStart();
         end = start + split.getLength();
         final Path file = split.getPath();
-        Configuration job = HadoopUtils.getConfiguration(context);
+        //Configuration job = HadoopUtils.getConfiguration(context);
+        Configuration job = context.getConfiguration();
         maxLineLen = job.getInt(MAX_LINE_LEN_CONF, Integer.MAX_VALUE);
 
         FileSystem fs = file.getFileSystem(job);

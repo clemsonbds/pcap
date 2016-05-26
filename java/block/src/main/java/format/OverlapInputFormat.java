@@ -27,10 +27,8 @@
 **/
 package format;
 
-import com.hadoop.compression.fourmc.FourMcBlockIndex;
-import com.hadoop.compression.fourmc.FourMcInputFormatUtil;
-import com.hadoop.compression.fourmc.util.HadoopUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -59,8 +57,8 @@ import java.util.List;
  * <b>Note:</b> unlikely default hadoop, but exactly like the EB version
  * this recursively examines directories for matching files.
  */
-public abstract class FourMcInputFormat<K, V> extends FileInputFormat<K, V> {
-    private static final Log LOG = LogFactory.getLog(FourMcInputFormat.class.getName());
+public abstract class OverlapInputFormat<K, V> extends FileInputFormat<K, V> {
+    private static final Log LOG = LogFactory.getLog(OverlapInputFormat.class.getName());
 
     private final PathFilter hiddenPathFilter = new PathFilter() {
         // avoid hidden files and directories.
@@ -76,8 +74,7 @@ public abstract class FourMcInputFormat<K, V> extends FileInputFormat<K, V> {
         public boolean accept(Path path) {
             String name = path.getName();
             return !name.startsWith(".") &&
-                    !name.startsWith("_") &&
-                    FourMcInputFormatUtil.is4mcFile(name);
+                    !name.startsWith("_"); //&& FourMcInputFormatUtil.is4mcFile(name);
         }
     };
 
@@ -85,7 +82,8 @@ public abstract class FourMcInputFormat<K, V> extends FileInputFormat<K, V> {
     protected List<FileStatus> listStatus(JobContext job) throws IOException {
         List<FileStatus> files = super.listStatus(job);
         List<FileStatus> results = new ArrayList<FileStatus>();
-        Configuration conf = HadoopUtils.getConfiguration(job);
+//        Configuration conf = HadoopUtils.getConfiguration(job);
+        Configuration conf = job.getConfiguration();
         boolean recursive = conf.getBoolean("mapred.input.dir.recursive", false);
         Iterator<FileStatus> it = files.iterator();
         while (it.hasNext()) {
@@ -94,7 +92,7 @@ public abstract class FourMcInputFormat<K, V> extends FileInputFormat<K, V> {
             addInputPath(results, fs, fileStatus, recursive);
         }
 
-        LOG.debug("Total 4mc input paths to process: " + results.size());
+        LOG.debug("Total pcap input paths to process: " + results.size());
         return results;
     }
 
@@ -116,7 +114,7 @@ public abstract class FourMcInputFormat<K, V> extends FileInputFormat<K, V> {
     protected boolean isSplitable(JobContext context, Path filename) {
         return true;
     }
-
+/******
     @Override
     public List<InputSplit> getSplits(JobContext job) throws IOException {
         Configuration conf = HadoopUtils.getConfiguration(job);
@@ -166,31 +164,29 @@ public abstract class FourMcInputFormat<K, V> extends FileInputFormat<K, V> {
 
         return result;
     }
-    
+ ******/   
+
     @Override
     public List<InputSplit> getSplits(JobContext context){
         List<InputSplit> splits = new ArrayList<InputSplit>();
         FileSystem fs = null;
-        Path file = OSMPBFInputFormat.getInputPaths(context)[0]; 
+        Path file = OverlapInputFormat.getInputPaths(context)[0]; 
+        Configuration conf = context.getConfiguration();
+        long blocksize = Long.parseLong(conf.get("dfs.blocksize")); 
+        long overlap = Long.parseLong(conf.get("pcap.defaultsize"));
         FSDataInputStream in = null;
         try {
             fs = FileSystem.get(context.getConfiguration());
             in = fs.open(file);
             long pos = 0;
             while (in.available() > 0){
-                int len = in.readInt(); 
-                byte[] blobHeader = new byte[len]; 
-                in.read(blobHeader);
-                BlobHeader h = BlobHeader.parseFrom(blobHeader);
-                FileSplit split = new FileSplit(file, pos,len + h.getDatasize(), new String[] {});
+                FileSplit split = new FileSplit(file, pos,blocksize + overlap, new String[] {});
                 splits.add(split);
-                pos += 4;
-                pos += len;
-                pos += h.getDatasize();
-                in.skip(h.getDatasize());
+                pos += blocksize;
+                in.skip(blocksize + overlap);
             }
         } catch (IOException e) {
-            sLogger.error(e.getLocalizedMessage());
+            LOG.error(e.getLocalizedMessage());
         } finally {
             if (in != null) {try {in.close();}catch(Exception e){}};
             if (fs != null) {try {fs.close();}catch(Exception e){}};
