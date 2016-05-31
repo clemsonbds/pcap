@@ -173,7 +173,8 @@ public abstract class OverlapInputFormat<K, V> extends FileInputFormat<K, V> {
         Path file = OverlapInputFormat.getInputPaths(context)[0]; 
         Configuration conf = context.getConfiguration();
         long blocksize = Long.parseLong(conf.get("dfs.blocksize")); 
-        long overlap = Long.parseLong(conf.get("pcap.defaultsize"));
+//        long overlap = Long.parseLong(conf.get("pcap.defaultsize"));
+        long overlap = 16;
         FSDataInputStream in = null;
         try {
             fs = FileSystem.get(context.getConfiguration());
