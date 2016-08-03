@@ -1,10 +1,12 @@
-package pcap;
+package examples;
 
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+
+import pcap.PcapRecordFormat;
 
 public class DetectPcapBoundaryExample {
 
@@ -28,7 +30,7 @@ public class DetectPcapBoundaryExample {
 			
 		int snap_len = java.nio.ByteBuffer.wrap(hbytes, 16, 4).order(byteOrder).getInt();
 
-		PcapBoundaryDetector detector = new PcapBoundaryDetector(dis, snap_len, byteOrder);
+		LzoRecordFormat detector = new LzoRecordFormat(dis, snap_len, byteOrder);
 		int start_index = detector.detect();
 
 		System.out.println("snaplen: " + snap_len + "  endian: " + byteOrder);

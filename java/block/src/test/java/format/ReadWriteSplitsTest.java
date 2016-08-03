@@ -13,7 +13,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
-public class ReadWriteSplits {
+public class ReadWriteSplitsTest {
 
   public static class TokenizerMapper
        extends Mapper<Object, Text, Text, IntWritable>{
