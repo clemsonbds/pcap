@@ -5,6 +5,7 @@ import pcap_util
 import split_pcap
 import sequential
 import random_access_lee
+import random_access_lukashin
 
 class ConfusionMatrix:
 	def __init__(self):
@@ -37,25 +38,25 @@ def evaluate(correct, solutions, start_offset=24, bytes_tested=sys.maxint):
 	conf_matrix = ConfusionMatrix()
 #	print correct, solutions
 
-        while len(correct) > 0 or len(solutions) > 0:
-                if len(correct) == 0:
-                        conf_matrix.FP += len(solutions)
-                        break
-                elif len(solutions) == 0:
-                        conf_matrix.FN += len(correct)
-                        break
-                elif solutions[-1] < correct[-1]:
-                        conf_matrix.FP += 1
-                        solutions.pop()
-                elif solutions[-1] > correct[-1]:
-                        conf_matrix.FN += 1
-                        correct.pop()
-                else: # equal
-                        conf_matrix.TP += 1
-                        solutions.pop()
-                        correct.pop()
+	while len(correct) > 0 or len(solutions) > 0:
+		if len(correct) == 0:
+			conf_matrix.FP += len(solutions)
+			break
+		elif len(solutions) == 0:
+			conf_matrix.FN += len(correct)
+			break
+		elif solutions[-1] > correct[-1]:
+			conf_matrix.FP += 1
+			solutions.pop()
+		elif solutions[-1] < correct[-1]:
+			conf_matrix.FN += 1
+			correct.pop()
+		else: # equal
+			conf_matrix.TP += 1
+			solutions.pop()
+			correct.pop()
 
-        conf_matrix.TN = bytes_tested - conf_matrix.TP - conf_matrix.FP - conf_matrix.FN
+	conf_matrix.TN = bytes_tested - conf_matrix.TP - conf_matrix.FP - conf_matrix.FN
 	return conf_matrix
 
 def get_solutions(find_start_func, file, snap_len, swap, stats, params, start_offset=24, end=sys.maxint):
@@ -85,10 +86,11 @@ if __name__ == "__main__":
 		end_byte = sys.maxint
 
 	rapcap=False
-	lee=True
+	lee=False
+	lukashin=True
 
-	min_ts = sys.maxint
-	max_ts = 0
+	real_min_ts = sys.maxint
+	real_max_ts = 0
 
 	correct_indices = []
 
@@ -100,10 +102,10 @@ if __name__ == "__main__":
 			correct_indices.append(index)
 
 			ts = float(ts_str)
-			if ts < min_ts:
-				min_ts = ts
-			if ts > max_ts:
-				max_ts = ts
+			if ts < real_min_ts:
+				real_min_ts = ts
+			if ts > real_max_ts:
+				real_max_ts = ts
 
 			# breaking down here to add one more to max_ts, to make Lee work.  will prune in evaluation
 			if index > end_byte:
@@ -113,18 +115,34 @@ if __name__ == "__main__":
 		header = pcap_util.TraceHeader(f.read(24))
 		swap = header.swap
 		snaplen = header.snaplen
+#		print 'alg,ts_min,ts_max,ts_delta,reads,TP,FP,TN,FN'
 
 		if lee:
-			stats = split_pcap.Stats()
+			ts_deltas = [0, 1, 60]
+			ts_mins = [0, real_min_ts]
+			ts_maxs = [0, real_max_ts]
+
 			find_start_func = random_access_lee.find_start
+
+			for ts_delta in ts_deltas:
+				for ts_min in ts_mins:
+					for ts_max in ts_maxs:
+						stats = split_pcap.Stats()
+						params = Parameters()
+						params.ts_min = ts_min
+						params.ts_max = ts_max
+						params.ts_delta = ts_delta
+
+						bytes_tested, solution_indices = get_solutions(find_start_func, f, snaplen, swap, stats, params, start_offset=start_byte, end=end_byte)
+						c = evaluate(correct_indices, solution_indices, start_byte, bytes_tested)
+						print ','.join('lee', ts_min, ts_max, ts_delta, stats.file_reads, c.TP, c.FP, c.TN, c.FN)
+		if lukashin:
+			stats = split_pcap.Stats()
 			params = Parameters()
-#			params.ts_min = min_ts
-#			params.ts_max = max_ts
-			params.ts_min = 0
-			params.ts_max = 0
-			params.ts_delta = 60
 
-		bytes_tested, solution_indices = get_solutions(find_start_func, f, snaplen, swap, stats, params, start_offset=start_byte, end=end_byte)
-
-	conf_matrix = evaluate(correct_indices, solution_indices, start_byte, bytes_tested)
-	print stats.file_reads, conf_matrix
+			find_start_func = random_access_lukashin.find_start
+			bytes_tested, solution_indices = get_solutions(find_start_func, f, snaplen, swap, stats, params, start_offset=start_byte, end=end_byte)
+			for x in solution_indices:
+				print x
+#			c = evaluate(correct_indices, solution_indices, start_byte, bytes_tested)
+#			print ','.join(['lukashin', '0','0','0', str(stats.file_reads), str(c.TP), str(c.FP), str(c.TN), str(c.FN)])

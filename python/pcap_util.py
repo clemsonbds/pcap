@@ -74,12 +74,9 @@ class TraceHeader:
 
 class PacketHeader:
 	def __init__(self, byte_array, index, swap):
-		self.ts_sec = btoint(byte_array[index : index+4], swap)
-		self.ts_usec = btoint(byte_array[index+4 : index+8], swap)
-		self.incl_len = btoint(byte_array[index+8 : index+12], swap)
-		self.orig_len = btoint(byte_array[index+12 : index+16], swap)
+		(self.ts_sec, self.ts_usec, self.incl_len, self.orig_len) = \
+			struct.unpack('<IIII' if swap else '>IIII', byte_array[index:index+16])
 	def valid(self, snap_len):
-#		print 'validating incl=%d orig=%d snap=%d' % (self.incl_len, self.orig_len, snap_len)
 		if self.incl_len > 0 \
 		 and self.incl_len == min(self.orig_len, snap_len):
 			return True

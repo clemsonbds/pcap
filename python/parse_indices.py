@@ -19,5 +19,7 @@ else:
 with open(filename, 'rb') as f:
 	header = pcap_util.TraceHeader(f.read(24))
 	f.seek(start+24)
-	indices = sequential.build_indices(f, header.swap, end=end)
-	print len(indices)
+	headers = pcap_util.extract_headers(f, header.swap, end=end)
+
+	for index in sorted(headers.keys()):
+		print "%d %d %d %d.%d" % (index, headers[index].incl_len, headers[index].orig_len, headers[index].ts_sec, headers[index].ts_usec)
