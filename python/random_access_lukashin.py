@@ -21,38 +21,30 @@ debug = False
 def is_valid_header(mm, index, snap_len, swap, stats, params):
 	(h1_incl_len, h1_orig_len) = struct.unpack('<II' if swap else '>II', mm[index+8:index+16])
 
-
-	if h1_incl_len != h1_orig_len:
-		if debug: print 'here1'
+	if h1_incl_len > h1_orig_len: # modified to allow for truncated pcap files
 		return False
 
 	if h1_incl_len < 42 or h1_incl_len > snap_len:
-		if debug: print 'here2'
 		return False
 
 	h2_index = index + 16 + h1_incl_len
 
 	if h2_index + 16 >= len(mm):
-		if debug: print 'here3'
 		raise ValueError
 
 	(h2_incl_len, h2_orig_len) = struct.unpack('<II' if swap else '>II', mm[h2_index+8:h2_index+16])
 
 	if h2_incl_len != h2_orig_len:
-		if debug: print 'here4'
 		return False
 
 	(ethcode,) = struct.unpack('>H', mm[index+28:index+30])
 
 	if ethcode <= 1500:
 		if ethcode != h1_orig_len - 14:
-			if debug: print 'here5'
 			return False
 	elif ethcode not in ethcodes:
-		if debug: print 'here6'
 		return False
 
-	if debug: print 'here7'
 	return True
 
 def find_start(file, end_byte, snap_len, swap, stats, params):

@@ -46,8 +46,8 @@ if __name__ == "__main__":
 		last_byte = 0
 
 	rapcap=False
-	lee=True
-	lukashin=False
+	lee=False
+	lukashin=True
 
 	file_size = os.path.getsize(dump_file)
 	if last_byte > file_size:
